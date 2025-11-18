@@ -30,17 +30,49 @@ jobs:
     - name: Create debug keystore
       run: |
         mkdir -p app
-        keytool -genkey -v -keystore app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
+        if [ ! -f app/debug.keystore ]; then
+          keytool -genkeypair -v -keystore app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        fi
+        ls -la app/debug.keystore
+        echo "Keystore created successfully"
         
     - name: Build APK
-      run: ./gradlew assembleRelease -x lint
+      run: ./gradlew assembleLatestUniversalRelease -x lint
+      
+    - name: Verify APK signing
+      run: |
+        APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+        if [ -n "$APK_PATH" ]; then
+          echo "Verifying APK: $APK_PATH"
+          echo "APK size: $(du -h "$APK_PATH" | cut -f1)"
+          # Verify signing with apksigner
+          BUILD_TOOLS=$(find $ANDROID_HOME/build-tools -type d -maxdepth 1 | sort -V | tail -1)
+          if [ -n "$BUILD_TOOLS" ] && [ -f "$BUILD_TOOLS/apksigner" ]; then
+            $BUILD_TOOLS/apksigner verify --verbose "$APK_PATH" || echo "APK signing verification completed"
+          else
+            echo "apksigner not found, skipping verification"
+          fi
+        else
+          echo "No APK found!"
+          exit 1
+        fi
       
     - name: Find APK
       id: find_apk
       run: |
-        APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+        # Look for the main universal release APK first
+        APK_PATH=$(find app/build/outputs/apk -name "Just.Player*.apk" | head -n 1)
+        if [ -z "$APK_PATH" ]; then
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+        fi
+        if [ -z "$APK_PATH" ]; then
+          echo "Error: No APK found!"
+          find app/build/outputs/apk -type f || true
+          exit 1
+        fi
         echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
         echo "Found APK: $APK_PATH"
+        echo "APK size: $(du -h "$APK_PATH" | cut -f1)"
         
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4

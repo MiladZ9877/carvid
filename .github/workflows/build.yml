@@ -80,3 +80,29 @@ jobs:
         name: app-release
         path: ${{ steps.find_apk.outputs.apk_path }}
         retention-days: 30
+        
+    - name: Create GitHub Release
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ steps.find_apk.outputs.apk_path }}
+        name: Release v${{ github.run_number }}
+        body: |
+          ## APK Build
+          
+          **Build Number:** ${{ github.run_number }}
+          **Commit:** ${{ github.sha }}
+          **Workflow:** ${{ github.workflow }}
+          
+          ### Download APK
+          Download the APK from the assets below or from the workflow artifacts.
+          
+          ### Features
+          - HUD mode for windshield mirror reflection
+          - Orientation lock/unlock
+          - Streaming URL support with 10-minute pre-buffering
+          - Reversed subtitles in HUD mode
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

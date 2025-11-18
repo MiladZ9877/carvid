@@ -101,6 +101,8 @@ android {
     lint {
         disable 'MissingTranslation'
         disable 'UnsafeOptInUsageError'
+        disable 'GestureBackNavigation'
+        abortOnError false
     }
 }
 

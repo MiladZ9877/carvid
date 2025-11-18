@@ -23,9 +23,31 @@ android {
             }
         }
     }
+    signingConfigs {
+        debug {
+            // For CI/CD: use debug.keystore if it exists
+            // For local builds: Android Studio will use default debug keystore
+            def debugKeystore = file('debug.keystore')
+            if (debugKeystore.exists()) {
+                storeFile debugKeystore
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
     buildTypes {
+        debug {
+            // Signing will be handled automatically by Android if no config specified
+        }
         release {
             minifyEnabled false
+            // Use debug signing for release builds (for testing)
+            // In production, replace with proper release signing
+            def debugKeystore = file('debug.keystore')
+            if (debugKeystore.exists()) {
+                signingConfig signingConfigs.debug
+            }
             //proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

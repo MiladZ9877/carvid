@@ -49,6 +49,7 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.accessibility.CaptioningManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
@@ -76,9 +77,11 @@ import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.Tracks;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlaybackException;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.exoplayer.SeekParameters;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
@@ -162,6 +165,7 @@ public class PlayerActivity extends Activity {
     private ImageButton buttonRotation;
     private ImageButton buttonHud;
     private ImageButton buttonOrientationLock;
+    private ImageButton buttonStreamUrl;
     private ImageButton exoSettings;
     private ImageButton exoPlayPause;
     private ProgressBar loadingProgressBar;
@@ -469,6 +473,11 @@ public class PlayerActivity extends Activity {
             resetHideCallbacks();
         });
 
+        buttonStreamUrl = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonStreamUrl.setContentDescription(getString(R.string.button_stream_url));
+        buttonStreamUrl.setImageResource(R.drawable.ic_link_24dp);
+        buttonStreamUrl.setOnClickListener(view -> showStreamUrlDialog());
+
         final int titleViewPaddingHorizontal = Utils.dpToPx(14);
         final int titleViewPaddingVertical = getResources().getDimensionPixelOffset(R.dimen.exo_styled_bottom_bar_time_padding);
         FrameLayout centerView = playerView.findViewById(R.id.exo_controls_background);
@@ -658,6 +667,7 @@ public class PlayerActivity extends Activity {
             controls.addView(buttonOrientationLock);
         }
         controls.addView(buttonHud);
+        controls.addView(buttonStreamUrl);
         controls.addView(exoSettings);
 
         exoBasicControls.addView(horizontalScrollView);
@@ -1259,9 +1269,20 @@ public class PlayerActivity extends Activity {
                 .setExtensionRendererMode(mPrefs.decoderPriority)
                 .setMapDV7ToHevc(mPrefs.mapDV7ToHevc);
 
+        // Configure LoadControl for 10-minute buffering (600 seconds) for streaming
+        LoadControl loadControl = new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                        600_000,  // minBufferMs - 10 minutes
+                        600_000,  // maxBufferMs - 10 minutes
+                        600_000,  // bufferForPlaybackMs - 10 minutes
+                        600_000   // bufferForPlaybackAfterRebufferMs - 10 minutes
+                )
+                .build();
+
         ExoPlayer.Builder playerBuilder = new ExoPlayer.Builder(this, renderersFactory)
                 .setTrackSelector(trackSelector)
-                .setMediaSourceFactory(new DefaultMediaSourceFactory(this, extractorsFactory));
+                .setMediaSourceFactory(new DefaultMediaSourceFactory(this, extractorsFactory))
+                .setLoadControl(loadControl);
 
         if (haveMedia && isNetworkUri) {
             if (mPrefs.mediaUri.getScheme().toLowerCase().startsWith("http")) {
@@ -2423,5 +2444,51 @@ public class PlayerActivity extends Activity {
             // Unlock orientation - restore to preference
             Utils.setOrientation(this, mPrefs.orientation);
         }
+    }
+
+    private void showStreamUrlDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(R.string.stream_url_dialog_title);
+
+        final EditText input = new EditText(this);
+        input.setHint(R.string.stream_url_hint);
+        input.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        input.setSingleLine(true);
+        
+        // Pre-fill with previous URL if available
+        if (mPrefs.mediaUri != null && Utils.isSupportedNetworkUri(mPrefs.mediaUri)) {
+            input.setText(mPrefs.mediaUri.toString());
+        }
+        
+        builder.setView(input);
+
+        builder.setPositiveButton(R.string.stream_url_play, (dialog, which) -> {
+            String url = input.getText().toString().trim();
+            if (!TextUtils.isEmpty(url)) {
+                try {
+                    Uri uri = Uri.parse(url);
+                    if (uri.isAbsolute() && (uri.getScheme().equals("http") || uri.getScheme().equals("https") || 
+                            uri.getScheme().equals("rtsp") || uri.getScheme().equals("rtmp"))) {
+                        mPrefs.setPersistent(true);
+                        mPrefs.updateMedia(this, uri, null);
+                        searchSubtitles();
+                        focusPlay = true;
+                        initializePlayer();
+                        resetHideCallbacks();
+                    } else {
+                        Toast.makeText(this, R.string.stream_url_invalid, Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(this, R.string.stream_url_invalid, Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, R.string.stream_url_invalid, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton(R.string.stream_url_cancel, (dialog, which) -> dialog.cancel());
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 }

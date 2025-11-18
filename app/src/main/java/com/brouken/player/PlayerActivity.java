@@ -160,6 +160,8 @@ public class PlayerActivity extends Activity {
     private ImageButton buttonPiP;
     private ImageButton buttonAspectRatio;
     private ImageButton buttonRotation;
+    private ImageButton buttonHud;
+    private ImageButton buttonOrientationLock;
     private ImageButton exoSettings;
     private ImageButton exoPlayPause;
     private ProgressBar loadingProgressBar;
@@ -434,10 +436,36 @@ public class PlayerActivity extends Activity {
         buttonRotation.setContentDescription(getString(R.string.button_rotate));
         updateButtonRotation();
         buttonRotation.setOnClickListener(view -> {
+            if (mPrefs.orientationLock) {
+                Utils.showText(playerView, getString(R.string.orientation_locked), 2000);
+                return;
+            }
             mPrefs.orientation = Utils.getNextOrientation(mPrefs.orientation);
             Utils.setOrientation(PlayerActivity.this, mPrefs.orientation);
             updateButtonRotation();
             Utils.showText(playerView, getString(mPrefs.orientation.description), 2500);
+            resetHideCallbacks();
+        });
+
+        buttonHud = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonHud.setContentDescription(getString(R.string.button_hud));
+        updateButtonHud();
+        buttonHud.setOnClickListener(view -> {
+            mPrefs.updateHudMode(!mPrefs.hudMode);
+            applyHudMode();
+            updateButtonHud();
+            Utils.showText(playerView, getString(mPrefs.hudMode ? R.string.hud_mode_on : R.string.hud_mode_off), 2000);
+            resetHideCallbacks();
+        });
+
+        buttonOrientationLock = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonOrientationLock.setContentDescription(getString(R.string.button_orientation_lock));
+        updateButtonOrientationLock();
+        buttonOrientationLock.setOnClickListener(view -> {
+            mPrefs.updateOrientationLock(!mPrefs.orientationLock);
+            applyOrientationLock();
+            updateButtonOrientationLock();
+            Utils.showText(playerView, getString(mPrefs.orientationLock ? R.string.orientation_locked : R.string.orientation_unlocked), 2000);
             resetHideCallbacks();
         });
 
@@ -627,7 +655,9 @@ public class PlayerActivity extends Activity {
         }
         if (!isTvBox) {
             controls.addView(buttonRotation);
+            controls.addView(buttonOrientationLock);
         }
+        controls.addView(buttonHud);
         controls.addView(exoSettings);
 
         exoBasicControls.addView(horizontalScrollView);
@@ -730,6 +760,8 @@ public class PlayerActivity extends Activity {
         }
         initializePlayer();
         updateButtonRotation();
+        applyHudMode();
+        applyOrientationLock();
     }
 
     @Override
@@ -739,6 +771,8 @@ public class PlayerActivity extends Activity {
         if (isTvBox && Build.VERSION.SDK_INT >= 31) {
             updateSubtitleStyle(this);
         }
+        applyHudMode();
+        applyOrientationLock();
     }
 
     @Override
@@ -1289,6 +1323,9 @@ public class PlayerActivity extends Activity {
                 playerView.setScale(1.f);
             }
             updatebuttonAspectRatioIcon();
+            
+            // Apply HUD mode after player view is set up
+            applyHudMode();
 
             MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
                     .setUri(mPrefs.mediaUri)
@@ -1967,6 +2004,8 @@ public class PlayerActivity extends Activity {
             subtitleView.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION * 2f / 3f);
         }
         setSubtitleTextSize();
+        // Reapply HUD mode to subtitles after style update
+        applyHudMode();
     }
 
     void searchSubtitles() {
@@ -2315,6 +2354,74 @@ public class PlayerActivity extends Activity {
             } else {
                 buttonRotation.setImageResource(R.drawable.ic_screen_landscape_24dp);
             }
+        }
+    }
+
+    private void updateButtonHud() {
+        if (buttonHud != null) {
+            buttonHud.setImageResource(R.drawable.ic_flip_24dp);
+        }
+    }
+
+    private void updateButtonOrientationLock() {
+        if (buttonOrientationLock != null) {
+            if (mPrefs.orientationLock) {
+                buttonOrientationLock.setImageResource(R.drawable.ic_lock_24dp);
+            } else {
+                buttonOrientationLock.setImageResource(R.drawable.ic_lock_open_24dp);
+            }
+        }
+    }
+
+    private void applyHudMode() {
+        if (playerView == null) return;
+        
+        try {
+            View videoSurfaceView = playerView.getVideoSurfaceView();
+            SubtitleView subtitleView = playerView.getSubtitleView();
+            
+            if (mPrefs.hudMode) {
+                // Apply horizontal flip (mirror) to video
+                // Preserve existing scaleY, only flip scaleX
+                if (videoSurfaceView != null) {
+                    float currentScaleY = videoSurfaceView.getScaleY();
+                    videoSurfaceView.setScaleX(-1.0f);
+                    videoSurfaceView.setScaleY(currentScaleY);
+                }
+                // Apply horizontal flip to subtitles
+                if (subtitleView != null) {
+                    subtitleView.setScaleX(-1.0f);
+                }
+            } else {
+                // Remove mirroring - restore normal scale
+                // Preserve existing scaleY if it was set
+                if (videoSurfaceView != null) {
+                    float currentScaleY = videoSurfaceView.getScaleY();
+                    videoSurfaceView.setScaleX(1.0f);
+                    videoSurfaceView.setScaleY(currentScaleY);
+                }
+                if (subtitleView != null) {
+                    subtitleView.setScaleX(1.0f);
+                }
+            }
+        } catch (Exception e) {
+            // Video surface view might not be available yet
+            e.printStackTrace();
+        }
+    }
+
+    private void applyOrientationLock() {
+        if (mPrefs.orientationLock) {
+            // Lock current orientation
+            int currentOrientation = getResources().getConfiguration().orientation;
+            if (currentOrientation == Configuration.ORIENTATION_PORTRAIT) {
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            } else {
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            }
+        } else {
+            // Unlock orientation - restore to preference
+            Utils.setOrientation(this, mPrefs.orientation);
         }
     }
 }

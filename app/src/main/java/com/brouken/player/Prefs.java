@@ -47,6 +47,8 @@ class Prefs {
     private static final String PREF_KEY_LANGUAGE_AUDIO = "languageAudio";
     private static final String PREF_KEY_SUBTITLE_STYLE_EMBEDDED = "subtitleStyleEmbedded";
     private static final String PREF_KEY_SUBTITLE_STYLE_BOLD = "subtitleStyleBold";
+    private static final String PREF_KEY_HUD_MODE = "hudMode";
+    private static final String PREF_KEY_ORIENTATION_LOCK = "orientationLock";
 
     public static final String TRACK_DEFAULT = "default";
     public static final String TRACK_DEVICE = "device";
@@ -81,6 +83,8 @@ class Prefs {
     public String languageAudio = TRACK_DEVICE;
     public boolean subtitleStyleEmbedded = true;
     public boolean subtitleStyleBold = false;
+    public boolean hudMode = false;
+    public boolean orientationLock = false;
 
     private LinkedHashMap positions;
 
@@ -130,6 +134,8 @@ class Prefs {
         languageAudio = mSharedPreferences.getString(PREF_KEY_LANGUAGE_AUDIO, languageAudio);
         subtitleStyleEmbedded = mSharedPreferences.getBoolean(PREF_KEY_SUBTITLE_STYLE_EMBEDDED, subtitleStyleEmbedded);
         subtitleStyleBold = mSharedPreferences.getBoolean(PREF_KEY_SUBTITLE_STYLE_BOLD, subtitleStyleBold);
+        hudMode = mSharedPreferences.getBoolean(PREF_KEY_HUD_MODE, hudMode);
+        orientationLock = mSharedPreferences.getBoolean(PREF_KEY_ORIENTATION_LOCK, orientationLock);
     }
 
     public void updateMedia(final Context context, final Uri uri, final String type) {
@@ -311,5 +317,19 @@ class Prefs {
 
     public void setPersistent(boolean persistentMode) {
         this.persistentMode = persistentMode;
+    }
+
+    public void updateHudMode(boolean hudMode) {
+        this.hudMode = hudMode;
+        final SharedPreferences.Editor sharedPreferencesEditor = mSharedPreferences.edit();
+        sharedPreferencesEditor.putBoolean(PREF_KEY_HUD_MODE, hudMode);
+        sharedPreferencesEditor.apply();
+    }
+
+    public void updateOrientationLock(boolean orientationLock) {
+        this.orientationLock = orientationLock;
+        final SharedPreferences.Editor sharedPreferencesEditor = mSharedPreferences.edit();
+        sharedPreferencesEditor.putBoolean(PREF_KEY_ORIENTATION_LOCK, orientationLock);
+        sharedPreferencesEditor.apply();
     }
 }
